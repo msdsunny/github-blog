@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -18,19 +19,24 @@
       line-height: 1.6;
       overflow: hidden;
     }
+
     body::-webkit-scrollbar {
       width: 10px;
     }
+
     body::-webkit-scrollbar-track {
       background: #f1f1f1;
     }
+
     body::-webkit-scrollbar-thumb {
       background: #888;
       border-radius: 5px;
     }
+
     body::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
+
     main {
       display: flex;
       flex-direction: column;
@@ -38,10 +44,12 @@
       overflow: hidden;
       min-height: 0;
     }
+
     h1 {
       margin: 0;
       font-size: 1.5rem;
     }
+
     .toolbar {
       display: flex;
       align-items: center;
@@ -50,19 +58,22 @@
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: #fff;
       border-radius: 0;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       margin-bottom: 0;
       flex-shrink: 0;
     }
+
     .toolbar h1 {
       flex: 1;
     }
+
     .toolbar .buttons {
       display: flex;
       gap: 0.5rem;
     }
+
     .toolbar button {
-      background: rgba(255,255,255,0.2);
+      background: rgba(255, 255, 255, 0.2);
       color: #fff;
       border: none;
       padding: 0.5rem 1rem;
@@ -70,13 +81,16 @@
       cursor: pointer;
       transition: background 0.2s;
     }
+
     .toolbar button:hover {
-      background: rgba(255,255,255,0.3);
+      background: rgba(255, 255, 255, 0.3);
     }
+
     .toolbar button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
+
     .main-grid {
       display: grid;
       grid-template-columns: 1.2fr 1fr;
@@ -86,22 +100,25 @@
       min-height: 0;
       overflow: hidden;
     }
+
     @media (max-width: 768px) {
       .main-grid {
         grid-template-columns: 1fr;
       }
     }
+
     .section {
       background: #fff;
       border-radius: 8px;
       padding: 1rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       border: 1px solid #e0e0e0;
       display: flex;
       flex-direction: column;
       min-height: 0;
       overflow: hidden;
     }
+
     .section h2 {
       margin-top: 0;
       font-size: 1.2rem;
@@ -110,6 +127,7 @@
       padding-bottom: 0.5rem;
       flex-shrink: 0;
     }
+
     textarea {
       width: 100%;
       flex: 1;
@@ -126,29 +144,179 @@
       background: #fff;
       line-height: 1.6;
     }
+
     textarea::-webkit-scrollbar {
       width: 8px;
       height: 8px;
     }
+
     textarea::-webkit-scrollbar-track {
       background: #f1f1f1;
     }
+
     textarea::-webkit-scrollbar-thumb {
       background: #888;
       border-radius: 4px;
     }
+
     textarea::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
+
     .preview {
       height: 100%;
       border: 1px solid #ccc;
       border-radius: 4px;
-      padding: 0.5rem;
+      padding: 1rem 1.25rem;
       background: #fafafa;
       overflow: auto;
-      white-space: pre-wrap;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: #333;
     }
+
+    /* Markdown rendering styles */
+    .preview h1,
+    .preview h2,
+    .preview h3,
+    .preview h4,
+    .preview h5,
+    .preview h6 {
+      margin: 1.2em 0 0.5em;
+      font-weight: 600;
+      line-height: 1.3;
+      color: #1a1a2e;
+    }
+
+    .preview h1 {
+      font-size: 1.8em;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 0.3em;
+    }
+
+    .preview h2 {
+      font-size: 1.45em;
+      border-bottom: 1px solid #e0e0e0;
+      padding-bottom: 0.25em;
+    }
+
+    .preview h3 {
+      font-size: 1.2em;
+    }
+
+    .preview h4 {
+      font-size: 1.05em;
+    }
+
+    .preview p {
+      margin: 0.6em 0;
+    }
+
+    .preview a {
+      color: #667eea;
+      text-decoration: none;
+    }
+
+    .preview a:hover {
+      text-decoration: underline;
+    }
+
+    .preview strong {
+      font-weight: 600;
+    }
+
+    .preview em {
+      font-style: italic;
+    }
+
+    .preview blockquote {
+      margin: 0.8em 0;
+      padding: 0.5em 1em;
+      border-left: 4px solid #667eea;
+      background: #f0f0ff;
+      color: #555;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .preview blockquote p {
+      margin: 0.3em 0;
+    }
+
+    .preview code {
+      background: #eef;
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+      color: #764ba2;
+    }
+
+    .preview pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 1em;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 0.8em 0;
+      line-height: 1.5;
+    }
+
+    .preview pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+      font-size: 0.88em;
+    }
+
+    .preview ul,
+    .preview ol {
+      margin: 0.5em 0;
+      padding-left: 1.8em;
+    }
+
+    .preview li {
+      margin: 0.25em 0;
+    }
+
+    .preview li>ul,
+    .preview li>ol {
+      margin: 0.15em 0;
+    }
+
+    .preview table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0.8em 0;
+    }
+
+    .preview th,
+    .preview td {
+      border: 1px solid #ddd;
+      padding: 0.5em 0.75em;
+      text-align: left;
+    }
+
+    .preview th {
+      background: #f5f5ff;
+      font-weight: 600;
+    }
+
+    .preview tr:nth-child(even) {
+      background: #fafafa;
+    }
+
+    .preview hr {
+      border: none;
+      border-top: 2px solid #e0e0e0;
+      margin: 1.5em 0;
+    }
+
+    .preview img {
+      max-width: 100%;
+      border-radius: 4px;
+    }
+
     .upload-block {
       display: none;
       position: fixed;
@@ -156,33 +324,38 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0, 0, 0, 0.5);
       z-index: 1000;
       justify-content: center;
       align-items: center;
     }
+
     .upload-block.active {
       display: flex;
     }
+
     .upload-modal {
       background: #fff;
       padding: 2rem;
       border-radius: 8px;
       max-width: 400px;
       width: 90%;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
+
     .upload-fields label,
     .upload-fields input {
       display: block;
       width: 100%;
       margin-bottom: 0.5rem;
     }
+
     .upload-fields input {
       padding: 0.5rem;
       border: 1px solid #ccc;
       border-radius: 4px;
     }
+
     .dropzone {
       border: 2px dashed #aaa;
       padding: 2rem;
@@ -192,39 +365,47 @@
       cursor: pointer;
       transition: border-color 0.2s;
     }
+
     .dropzone.dragover {
       border-color: #667eea;
       background: #eef;
     }
+
     #upload-status {
       margin-top: 1rem;
       font-size: 0.9rem;
       color: #333;
     }
+
     .visually-hidden {
       position: absolute !important;
-      height: 1px; width: 1px;
+      height: 1px;
+      width: 1px;
       overflow: hidden;
       clip: rect(1px, 1px, 1px, 1px);
       white-space: nowrap;
     }
+
     .output-section {
       margin: 0 1rem 1rem 1rem;
       flex: 0 0 35vh;
       min-height: 0;
       border-top: 2px solid #e0e0e0;
     }
+
     .output-section textarea {
       flex: 1;
       min-height: 0;
     }
   </style>
 </head>
+
 <body>
   <header class="toolbar">
-    <h1>GitHub Image Helper</h1>
+    <h1>GitHub Markdown Editor</h1>
     <div class="buttons">
-      <button id="generate">Generate</button>
+      <input type="file" id="file-input" accept=".md,.markdown,.txt" class="visually-hidden">
+      <button id="open-file">Open File</button>
       <button id="copy" disabled>Copy</button>
       <button id="toggle-output">Output</button>
       <button id="toggle-upload">Upload</button>
@@ -235,7 +416,8 @@
     <div class="main-grid">
       <section class="section">
         <h2>Input</h2>
-        <textarea id="url" placeholder="Type or paste URLs, &lt;img&gt; tags, entire content – or paste/drop an image to upload"></textarea>
+        <textarea id="url"
+          placeholder="Type or paste URLs, &lt;img&gt; tags, entire content – or paste/drop an image to upload"></textarea>
       </section>
 
       <section class="section">
@@ -258,7 +440,8 @@
         <input id="repo" type="text" placeholder="owner/repo or https://github.com/owner/repo">
         <label for="path">Path (optional)</label>
         <input id="path" type="text" placeholder="images">
-        <label for="token">Token <small>(<a href="https://github.com/settings/tokens" target="_blank">create here</a>)</small></label>
+        <label for="token">Token <small>(<a href="https://github.com/settings/tokens" target="_blank">create
+              here</a>)</small></label>
         <input id="token" type="password" placeholder="ghp_...">
       </div>
       <div id="dropzone" class="dropzone">Drop or paste image here</div>
@@ -267,6 +450,10 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/turndown/dist/turndown.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/turndown-plugin-gfm/dist/turndown-plugin-gfm.js"></script>
   <script src="script.js"></script>
 </body>
+
 </html>

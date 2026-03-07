@@ -97,7 +97,12 @@ function processContent(raw) {
         }
     }
     outputArea.value = result;
-    previewArea.innerHTML = result;
+    // render markdown in preview, fall back to raw HTML
+    try {
+        previewArea.innerHTML = marked.parse(result);
+    } catch (e) {
+        previewArea.innerHTML = result;
+    }
     copyBtn.disabled = result === '';
 }
 
@@ -116,8 +121,23 @@ inputArea.addEventListener('input', () => {
     debouncedSave();
 });
 
-document.getElementById('generate').addEventListener('click', () => {
-    processContent(inputArea.value);
+// open file button — pick a .md file and load into input
+const fileInput = document.getElementById('file-input');
+document.getElementById('open-file').addEventListener('click', () => {
+    fileInput.click();
+});
+fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        inputArea.value = reader.result;
+        processContent(inputArea.value);
+        debouncedSave();
+    };
+    reader.readAsText(file);
+    // reset so the same file can be re-selected
+    fileInput.value = '';
 });
 
 toggleUploadBtn.addEventListener('click', () => {
@@ -287,17 +307,53 @@ dropzone.addEventListener('drop', e => {
     handleFiles(e.dataTransfer.files);
 });
 
-// paste into input area
+// initialise Turndown HTML-to-Markdown converter
+const turndownService = new TurndownService({
+    headingStyle: 'atx',        // # style headings
+    codeBlockStyle: 'fenced',   // ``` style code blocks
+    bulletListMarker: '-',
+    emDelimiter: '*',
+    strongDelimiter: '**',
+    linkStyle: 'inlined',
+});
+// enable GFM extras (tables, strikethrough, task lists)
+turndownService.use(turndownPluginGfm.gfm);
+
+// paste into input area — convert rich HTML to markdown
 inputArea.addEventListener('paste', e => {
-    const items = e.clipboardData && e.clipboardData.items;
-    if (!items) return;
-    for (const item of items) {
-        if (item.type.startsWith('image/')) {
-            e.preventDefault();
-            const blob = item.getAsFile();
-            uploadImage(blob).then(insertSnippet);
-            break;
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    // 1. check for image paste first (existing upload behaviour)
+    const items = clipboardData.items;
+    if (items) {
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const blob = item.getAsFile();
+                uploadImage(blob).then(insertSnippet);
+                return;
+            }
         }
+    }
+
+    // 2. check for rich HTML content and convert to markdown
+    const html = clipboardData.getData('text/html');
+    if (html && html.trim()) {
+        e.preventDefault();
+        const markdown = turndownService.turndown(html);
+        // insert at cursor position
+        const start = inputArea.selectionStart;
+        const end = inputArea.selectionEnd;
+        const before = inputArea.value.slice(0, start);
+        const after = inputArea.value.slice(end);
+        inputArea.value = before + markdown + after;
+        // move cursor to end of inserted text
+        const pos = start + markdown.length;
+        inputArea.selectionStart = inputArea.selectionEnd = pos;
+        // trigger processing and save
+        processContent(inputArea.value);
+        debouncedSave();
     }
 });
 
