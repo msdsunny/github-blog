@@ -49,8 +49,8 @@ const pathInput = document.getElementById('path');
 const tokenInput = document.getElementById('token');
 
 function looksLikeUrl(s) {
-    // basic check for http(s) urls
-    return /^https?:\/\//i.test(s);
+    // basic check for http(s) urls and data URIs
+    return /^(https?:\/\/|data:)/i.test(s);
 }
 
 function processContent(raw) {
@@ -121,11 +121,208 @@ inputArea.addEventListener('input', () => {
     debouncedSave();
 });
 
-// open file button — pick a .md file and load into input
+
+// read an image file handle and return a data-URI string
+async function fileHandleToDataUri(fileHandle) {
+    const file = await fileHandle.getFile();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// search for a file by name recursively within a directory handle
+async function searchFileByName(dirHandle, targetFileName) {
+    try {
+        for await (const [name, handle] of dirHandle.entries()) {
+            if (handle.kind === 'file' && name === targetFileName) {
+                return handle;
+            }
+            if (handle.kind === 'directory') {
+                const result = await searchFileByName(handle, targetFileName);
+                if (result) return result;
+            }
+        }
+    } catch {
+        // permission error or similar
+    }
+    return null;
+}
+
+// extract a usable path from various image reference formats
+function normalizeImagePath(rawPath) {
+    let cleaned = rawPath.trim();
+    // strip file:/// protocol
+    if (cleaned.startsWith('file:///')) {
+        cleaned = cleaned.slice(7); // removes "file:///"
+    }
+    // decode URI encoding (%20, etc.)
+    try { cleaned = decodeURIComponent(cleaned); } catch {}
+    return cleaned;
+}
+
+// given markdown text and access to a root directory handle + the subdirectory
+// the .md file lives in, resolve every image reference to a data URI.
+async function resolveImages(markdown, rootDirHandle, mdDirParts) {
+    // match both ![alt](path) and <img ... src="path" ...>
+    const imgRegex = /!\[[^\]]*\]\(([^)]+)\)|<img[^>]+src\s*=\s*"([^"]+)"/gi;
+    const replacements = [];
+    // cache already-searched filenames to avoid duplicate searches
+    const searchCache = new Map();
+    let m;
+    while ((m = imgRegex.exec(markdown)) !== null) {
+        const rawPath = m[1] || m[2];
+        // skip web URLs and data URIs
+        if (/^(https?:\/\/|data:)/i.test(rawPath)) continue;
+
+        const cleanPath = normalizeImagePath(rawPath);
+        const fileName = cleanPath.split('/').pop();
+        let fileHandle = null;
+
+        if (cleanPath.startsWith('/') || rawPath.startsWith('file:///')) {
+            // ABSOLUTE path or file:// URI — can't resolve by walking from root
+            // since we don't know the root's absolute path.
+            // Strategy: search by filename in the entire directory tree.
+            if (searchCache.has(fileName)) {
+                fileHandle = searchCache.get(fileName);
+            } else {
+                fileHandle = await searchFileByName(rootDirHandle, fileName);
+                searchCache.set(fileName, fileHandle);
+            }
+        } else {
+            // RELATIVE path — resolve from the md file's directory
+            const combined = [...mdDirParts];
+            const relParts = cleanPath.split('/');
+            for (const p of relParts) {
+                if (p === '.' || p === '') continue;
+                if (p === '..') { combined.pop(); continue; }
+                combined.push(p);
+            }
+            // try to walk directory tree from root
+            try {
+                let handle = rootDirHandle;
+                for (let i = 0; i < combined.length; i++) {
+                    if (i === combined.length - 1) {
+                        handle = await handle.getFileHandle(combined[i]);
+                    } else {
+                        handle = await handle.getDirectoryHandle(combined[i]);
+                    }
+                }
+                fileHandle = handle;
+            } catch {
+                // relative resolution failed — fallback to filename search
+                if (searchCache.has(fileName)) {
+                    fileHandle = searchCache.get(fileName);
+                } else {
+                    fileHandle = await searchFileByName(rootDirHandle, fileName);
+                    searchCache.set(fileName, fileHandle);
+                }
+            }
+        }
+
+        if (fileHandle) {
+            try {
+                const dataUri = await fileHandleToDataUri(fileHandle);
+                replacements.push({ original: rawPath, dataUri });
+            } catch {
+                console.warn('Could not read image file:', rawPath);
+            }
+        } else {
+            console.warn('Could not find image:', rawPath);
+        }
+    }
+    // apply replacements (replace all occurrences of each path)
+    let result = markdown;
+    for (const { original, dataUri } of replacements) {
+        // escape for use in regex
+        const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        result = result.replace(new RegExp(escaped, 'g'), dataUri);
+    }
+    return result;
+}
+
+// open file button — use File System Access API when available
 const fileInput = document.getElementById('file-input');
-document.getElementById('open-file').addEventListener('click', () => {
-    fileInput.click();
+
+// cache directory handle so user only picks root dir once per session
+let cachedRootDirHandle = null;
+
+document.getElementById('open-file').addEventListener('click', async () => {
+    if (window.showOpenFilePicker) {
+        try {
+            const [fileHandle] = await window.showOpenFilePicker({
+                types: [{
+                    description: 'Markdown files',
+                    accept: { 'text/markdown': ['.md', '.markdown', '.txt'] }
+                }],
+                multiple: false,
+            });
+            const file = await fileHandle.getFile();
+            let content = await file.text();
+
+            // check if the content has ANY local image references:
+            // - relative paths (../images/foo.png)
+            // - absolute paths (/home/user/images/foo.png)
+            // - file:/// URIs (file:///home/user/images/foo.png)
+            const hasLocalImages = /!\[[^\]]*\]\((?!https?:\/\/|data:)([^)]+)\)|<img[^>]+src\s*=\s*"(?!https?:\/\/|data:)([^"]+)"/i.test(content);
+
+            if (hasLocalImages) {
+                // Ask for directory access if we don't have one cached
+                if (!cachedRootDirHandle) {
+                    try {
+                        alert('This file has local image references.\nPlease select the ROOT folder that contains both your markdown files and images folders.\n\nFor example, if your images are in ~/Desktop/images/, select your Desktop folder.');
+                        cachedRootDirHandle = await window.showDirectoryPicker({
+                            mode: 'read',
+                            startIn: 'desktop',
+                        });
+                    } catch {
+                        // user cancelled — still load the file, images just won't resolve
+                    }
+                }
+
+                if (cachedRootDirHandle) {
+                    const pathParts = await findFileInDirectory(cachedRootDirHandle, file.name);
+                    if (pathParts) {
+                        const dirParts = pathParts.slice(0, -1);
+                        content = await resolveImages(content, cachedRootDirHandle, dirParts);
+                    } else {
+                        content = await resolveImages(content, cachedRootDirHandle, []);
+                    }
+                }
+            }
+
+            inputArea.value = content;
+            processContent(inputArea.value);
+            debouncedSave();
+        } catch (err) {
+            if (err.name !== 'AbortError') console.error('File open error:', err);
+        }
+    } else {
+        // fallback for browsers without File System Access API
+        fileInput.click();
+    }
 });
+
+// find a file by name inside a directory handle, returns array of path parts
+async function findFileInDirectory(dirHandle, fileName, currentPath = []) {
+    try {
+        for await (const [name, handle] of dirHandle.entries()) {
+            if (handle.kind === 'file' && name === fileName) {
+                return [...currentPath, name];
+            }
+            if (handle.kind === 'directory') {
+                const result = await findFileInDirectory(handle, fileName, [...currentPath, name]);
+                if (result) return result;
+            }
+        }
+    } catch {
+        // permission error or similar
+    }
+    return null;
+}
+
 fileInput.addEventListener('change', () => {
     const file = fileInput.files[0];
     if (!file) return;
