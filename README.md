@@ -5,6 +5,7 @@ A tiny helper application that takes a GitHub image URL (the one you get when yo
 ```html
 <div align="center"><img src="https://..." /></div>
 ```
+<img width="1915" height="912" alt="image" src="https://github.com/user-attachments/assets/8efaf7b9-7a30-4b28-9434-e18be8a4fbb7" />
 
 ## Usage
 
