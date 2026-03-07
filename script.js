@@ -101,8 +101,20 @@ function processContent(raw) {
     copyBtn.disabled = result === '';
 }
 
-// fire on button click and on input change
-inputArea.addEventListener('input', () => processContent(inputArea.value));
+// debounced save to localStorage
+let saveTimer = null;
+function debouncedSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+        localStorage.setItem('inputContent', inputArea.value);
+    }, 500);
+}
+
+// fire on input change: update preview instantly, save to storage with debounce
+inputArea.addEventListener('input', () => {
+    processContent(inputArea.value);
+    debouncedSave();
+});
 
 document.getElementById('generate').addEventListener('click', () => {
     processContent(inputArea.value);
@@ -135,6 +147,12 @@ window.addEventListener('load', () => {
     if (sessionStorage.getItem('githubRepo')) repoInput.value = sessionStorage.getItem('githubRepo');
     if (sessionStorage.getItem('githubPath')) pathInput.value = sessionStorage.getItem('githubPath');
     if (sessionStorage.getItem('githubToken')) tokenInput.value = sessionStorage.getItem('githubToken');
+    // restore input content from localStorage
+    const saved = localStorage.getItem('inputContent');
+    if (saved) {
+        inputArea.value = saved;
+        processContent(saved);
+    }
 });
 
 document.getElementById('copy').addEventListener('click', () => {
