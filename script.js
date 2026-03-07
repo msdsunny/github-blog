@@ -40,6 +40,9 @@ const outputArea = document.getElementById('output');
 const previewArea = document.getElementById('preview');
 const copyBtn = document.getElementById('copy');
 const toggleOutputBtn = document.getElementById('toggle-output');
+
+// map of relative image paths → blob URLs for preview rendering
+const uploadedImageMap = new Map();
 const toggleUploadBtn = document.getElementById('toggle-upload');
 const uploadBlock = document.getElementById('upload-block');
 const outputSection = document.getElementById('output-section');
@@ -49,8 +52,8 @@ const pathInput = document.getElementById('path');
 const tokenInput = document.getElementById('token');
 
 function looksLikeUrl(s) {
-    // basic check for http(s) urls and data URIs
-    return /^(https?:\/\/|data:)/i.test(s);
+    // basic check for http(s) urls, data URIs, and relative paths (e.g., ../images/ or ./ or file.png)
+    return /^(https?:\/\/|data:|blob:|\.\.?\/)/i.test(s) || /\.(png|jpe?g|gif|webp|svg|avif)(\?.*)?$/i.test(s);
 }
 
 function processContent(raw) {
@@ -97,11 +100,16 @@ function processContent(raw) {
         }
     }
     outputArea.value = result;
+    // for preview, swap relative image paths with blob URLs so images display
+    let previewResult = result;
+    for (const [relativePath, blobUrl] of uploadedImageMap) {
+        previewResult = previewResult.replaceAll(relativePath, blobUrl);
+    }
     // render markdown in preview, fall back to raw HTML
     try {
-        previewArea.innerHTML = marked.parse(result);
+        previewArea.innerHTML = marked.parse(previewResult);
     } catch (e) {
-        previewArea.innerHTML = result;
+        previewArea.innerHTML = previewResult;
     }
     copyBtn.disabled = result === '';
 }
@@ -446,9 +454,12 @@ function uploadImage(blob) {
                 .then(data => {
                     if (data && data.content) {
                         showStatus('Upload successful');
-                        // Use a relative path instead of download_url
-                        // download_url contains a temporary token that expires
-                        resolve(`../${fullPath}`);
+                        // Use a relative path for the markdown
+                        // But we also need the temporary download_url for the preview
+                        resolve({
+                            relativePath: `../${fullPath}`,
+                            githubUrl: data.content.download_url
+                        });
                     } else {
                         showStatus('Upload failed', true);
                         console.error('upload error', data);
@@ -480,7 +491,13 @@ function insertSnippet(url) {
 function handleFiles(files) {
     for (const file of files) {
         if (file.type.startsWith('image/')) {
-            uploadImage(file).then(insertSnippet);
+            uploadImage(file).then(({ relativePath, githubUrl }) => {
+                // store mapping so preview can show the temporary github image
+                if (githubUrl) {
+                    uploadedImageMap.set(relativePath, githubUrl);
+                }
+                insertSnippet(relativePath);
+            });
         }
     }
 }
@@ -530,7 +547,12 @@ inputArea.addEventListener('paste', e => {
             if (item.type.startsWith('image/')) {
                 e.preventDefault();
                 const blob = item.getAsFile();
-                uploadImage(blob).then(insertSnippet);
+                uploadImage(blob).then(({ relativePath, githubUrl }) => {
+                    if (githubUrl) {
+                        uploadedImageMap.set(relativePath, githubUrl);
+                    }
+                    insertSnippet(relativePath);
+                });
                 return;
             }
         }
