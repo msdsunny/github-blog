@@ -67,7 +67,7 @@ function processContent(raw) {
         tmp.innerHTML = raw;
         const imgs = tmp.querySelectorAll('img');
         const hasValidUrl = Array.from(imgs).some(i => looksLikeUrl(i.getAttribute('src') || ''));
-        
+
         if (hasValidUrl) {
             // wrap images with valid URLs
             result = wrapImages(raw);
@@ -159,7 +159,7 @@ function normalizeImagePath(rawPath) {
         cleaned = cleaned.slice(7); // removes "file:///"
     }
     // decode URI encoding (%20, etc.)
-    try { cleaned = decodeURIComponent(cleaned); } catch {}
+    try { cleaned = decodeURIComponent(cleaned); } catch { }
     return cleaned;
 }
 
@@ -426,7 +426,7 @@ function uploadImage(blob) {
         }
         const [owner, repository] = repoParts;
         const filename = `image-${Date.now()}.png`;
-        const fullPath = path ? `${path.replace(/\/+$/,'')}/${filename}` : filename;
+        const fullPath = path ? `${path.replace(/\/+$/, '')}/${filename}` : filename;
 
         const reader = new FileReader();
         reader.onload = () => {
@@ -443,20 +443,22 @@ function uploadImage(blob) {
                     content: b64
                 })
             }).then(r => r.json())
-              .then(data => {
-                  if (data && data.content && data.content.download_url) {
-                      showStatus('Upload successful');
-                      resolve(data.content.download_url);
-                  } else {
-                      showStatus('Upload failed', true);
-                      console.error('upload error', data);
-                      reject(data);
-                  }
-              }).catch(err => {
-                  showStatus('Upload error', true);
-                  console.error(err);
-                  reject(err);
-              });
+                .then(data => {
+                    if (data && data.content) {
+                        showStatus('Upload successful');
+                        // Use a relative path instead of download_url
+                        // download_url contains a temporary token that expires
+                        resolve(`../${fullPath}`);
+                    } else {
+                        showStatus('Upload failed', true);
+                        console.error('upload error', data);
+                        reject(data);
+                    }
+                }).catch(err => {
+                    showStatus('Upload error', true);
+                    console.error(err);
+                    reject(err);
+                });
         };
         reader.readAsDataURL(blob);
     });
@@ -484,7 +486,7 @@ function handleFiles(files) {
 }
 
 // drag/drop on modal dropzone
-['dragenter','dragover'].forEach(evt => {
+['dragenter', 'dragover'].forEach(evt => {
     dropzone.addEventListener(evt, e => {
         e.preventDefault();
         dropzone.classList.add('dragover');
@@ -492,7 +494,7 @@ function handleFiles(files) {
         uploadBlock.classList.add('active');
     });
 });
-['dragleave','drop'].forEach(evt => {
+['dragleave', 'drop'].forEach(evt => {
     dropzone.addEventListener(evt, e => {
         e.preventDefault();
         dropzone.classList.remove('dragover');
