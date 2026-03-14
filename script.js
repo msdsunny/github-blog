@@ -433,7 +433,10 @@ function uploadImage(blob) {
             return;
         }
         const [owner, repository] = repoParts;
-        const filename = `image-${Date.now()}.png`;
+        // Determine file extension from blob type so SVGs get saved as .svg
+        const extMap = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
+        const ext = extMap[blob.type] || 'png';
+        const filename = `image-${Date.now()}.${ext}`;
         const fullPath = path ? `${path.replace(/\/+$/, '')}/${filename}` : filename;
 
         const reader = new FileReader();
@@ -474,6 +477,158 @@ function uploadImage(blob) {
         reader.readAsDataURL(blob);
     });
 }
+
+// ------ Upload URLs from content -----------------------------------------
+
+// Download an image from a URL via local proxy (server-side fetch, no CORS issues)
+// Falls back to direct fetch if proxy isn't available
+async function downloadImageAsBlob(url) {
+    // Try via local proxy first (handles CORS by fetching server-side)
+    try {
+        const proxyUrl = `http://localhost:3000/download-image?url=${encodeURIComponent(url)}`;
+        const resp = await fetch(proxyUrl);
+        if (resp.ok) {
+            return await resp.blob();
+        }
+    } catch (err) {
+        console.warn('Local proxy not available, trying direct fetch...', err.message);
+    }
+
+    // Fallback: direct fetch (works if served from same origin or CORS allowed)
+    try {
+        const resp = await fetch(url);
+        if (resp.ok) {
+            return await resp.blob();
+        }
+    } catch (err) {
+        console.error('Direct fetch also failed:', url, err.message);
+    }
+    return null;
+}
+
+// Check if a URL is a valid image URL we should process
+function isImageUrl(url) {
+    // known image extensions
+    if (/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)(\?.*)?$/i.test(url)) return true;
+    // educative.io image API or similar image API endpoints
+    if (/\/image\/\d+/i.test(url)) return true;
+    // URLs with common image-related query params
+    if (/[?&](image|img|photo|pic|get_optimised)/i.test(url)) return true;
+    return false;
+}
+
+// Main function: scan content for image URLs, download & upload to GitHub,
+// replace original URLs with GitHub URLs wrapped in centered div
+async function uploadUrlsFromContent() {
+    const content = inputArea.value;
+    if (!content.trim()) {
+        showStatus('No content to scan', true);
+        return;
+    }
+
+    // Step 1: Remove SVG data URI placeholder images ![](data:image/svg+xml,...)
+    // These are dummy placeholders paired with real images
+    let cleanedContent = content.replace(/!\[\]\(data:image\/svg\+xml[^)]*\)/g, '');
+
+    // Step 2: Find all markdown image references with HTTP URLs: ![...](https://...)
+    // Capture the full match and the URL inside
+    const mdImageRegex = /!\[[^\]]*\]\((https?:\/\/[^\s)"]+)(?:\s[^)]*)??\)/g;
+    const matches = [];
+    let m;
+    while ((m = mdImageRegex.exec(cleanedContent)) !== null) {
+        const url = m[1].trim();
+        if (isImageUrl(url)) {
+            matches.push({
+                fullMatch: m[0],    // e.g. ![](https://educative.io/api/.../image/123?...)
+                url: url            // just the URL
+            });
+        }
+    }
+
+    if (matches.length === 0) {
+        // Also check for bare URLs (not in markdown syntax)
+        const bareUrlRegex = /https?:\/\/[^\s<>"']+/gi;
+        const bareMatches = (cleanedContent.match(bareUrlRegex) || []).filter(isImageUrl);
+        if (bareMatches.length === 0) {
+            showStatus('No image URLs found in content', true);
+            return;
+        }
+        // Use bare URLs
+        for (const url of bareMatches) {
+            matches.push({ fullMatch: url, url: url });
+        }
+    }
+
+    // Deduplicate by URL
+    const seen = new Set();
+    const uniqueMatches = matches.filter(m => {
+        if (seen.has(m.url)) return false;
+        seen.add(m.url);
+        return true;
+    });
+
+    const uploadUrlBtn = document.getElementById('upload-urls');
+    uploadUrlBtn.disabled = true;
+    uploadUrlBtn.textContent = `Uploading 0/${uniqueMatches.length}...`;
+    showStatus(`Found ${uniqueMatches.length} image URL(s). Downloading & uploading...`);
+
+    let updatedContent = cleanedContent;
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < uniqueMatches.length; i++) {
+        const { fullMatch, url } = uniqueMatches[i];
+        uploadUrlBtn.textContent = `Uploading ${i + 1}/${uniqueMatches.length}...`;
+        showStatus(`Processing ${i + 1}/${uniqueMatches.length}: downloading...`);
+
+        try {
+            const blob = await downloadImageAsBlob(url);
+            if (!blob) {
+                console.warn('Could not download:', url);
+                failCount++;
+                continue;
+            }
+
+            showStatus(`Processing ${i + 1}/${uniqueMatches.length}: uploading to GitHub...`);
+            const { relativePath, githubUrl } = await uploadImage(blob);
+
+            if (!githubUrl || !relativePath) {
+                failCount++;
+                continue;
+            }
+
+            // Build the wrapped replacement using relative path for the markdown
+            const wrappedSnippet = `<div align="center"><img src="${relativePath}" /></div>`;
+
+            // Replace ALL occurrences of the full match in the content
+            updatedContent = updatedContent.split(fullMatch).join(wrappedSnippet);
+
+            // Store mapping so the preview pane shows the actual GitHub image
+            uploadedImageMap.set(relativePath, githubUrl);
+
+            successCount++;
+            // Small delay to avoid hitting GitHub rate limits
+            if (i < uniqueMatches.length - 1) {
+                await new Promise(r => setTimeout(r, 500));
+            }
+        } catch (err) {
+            console.error('Failed to process URL:', url, err);
+            failCount++;
+        }
+    }
+
+    // Update the input area with the new content
+    inputArea.value = updatedContent;
+    processContent(updatedContent);
+    debouncedSave();
+
+    uploadUrlBtn.disabled = false;
+    uploadUrlBtn.textContent = 'Upload URLs';
+    showStatus(`Done! ${successCount} uploaded, ${failCount} failed.`, failCount > 0);
+}
+
+// Hook up button
+document.getElementById('upload-urls').addEventListener('click', uploadUrlsFromContent);
 
 function insertSnippet(url) {
     const snippet = `<div align="center"><img src="${url}" /></div>`;
@@ -561,6 +716,22 @@ inputArea.addEventListener('paste', e => {
     // 2. check for rich HTML content and convert to markdown
     const html = clipboardData.getData('text/html');
     if (html && html.trim()) {
+        const types = Array.from(clipboardData.types || []);
+        const isVSCode = types.includes('vscode-editor-data');
+        
+        // Check if the HTML contains structural tags that imply actual rich text
+        // (paragraphs, headings, lists, tables, links, bold, italic, quotes, etc.)
+        // If it's just <div>s and <span>s (like IDE syntax highlighting), we skip Turndown.
+        const hasRichMarkup = /<(p|h[1-6]|ul|ol|li|table|blockquote|a|strong|b|em|i)\b/i.test(html);
+
+        if (isVSCode || !hasRichMarkup) {
+            // It's likely syntax-highlighted code from an editor.
+            // Turndown strips indentation from this.
+            // Return early to let the browser's default paste handle text/plain natively,
+            // which preserves perfect indentation.
+            return;
+        }
+
         e.preventDefault();
         const markdown = turndownService.turndown(html);
         // insert at cursor position
